@@ -1,13 +1,17 @@
 import streamlit as st
 from utils.data_manager import DataManager
 from utils.charts import create_financial_chart
+from utils.page_auth import require_auth
 import pandas as pd
 from datetime import datetime, timedelta
 
+# Require authentication
+user = require_auth()
+
 st.set_page_config(page_title="Financial Management", page_icon="💰")
 
-# Initialize DataManager
-dm = DataManager()
+# Initialize DataManager with the authenticated user's tenant
+dm = DataManager(user['tenant_id'])
 
 st.title("Financial Management")
 
@@ -16,17 +20,17 @@ tab1, tab2, tab3 = st.tabs(["Add Transaction", "Financial Overview", "Reports"])
 
 with tab1:
     st.header("Record Transaction")
-    
+
     with st.form("transaction_form"):
         col1, col2 = st.columns(2)
-        
+
         with col1:
             transaction_type = st.selectbox(
                 "Transaction Type",
                 ["income", "expense"]
             )
             amount = st.number_input("Amount ($)", min_value=0.0, format="%.2f")
-            
+
         with col2:
             category = st.selectbox(
                 "Category",
@@ -34,7 +38,7 @@ with tab1:
                  "Maintenance", "Utilities", "Salary", "Other"]
             )
             description = st.text_area("Description")
-        
+
         if st.form_submit_button("Record Transaction"):
             if amount > 0:
                 transaction_data = {
@@ -50,28 +54,28 @@ with tab1:
 
 with tab2:
     st.header("Financial Overview")
-    
+
     # Load financial data
     finance_df = dm.get_financial_summary()
-    
+
     # Summary metrics
     col1, col2, col3 = st.columns(3)
-    
+
     with col1:
         total_income = finance_df[finance_df['type'] == 'income']['amount'].sum()
         st.metric("Total Income", f"${total_income:,.2f}")
-        
+
     with col2:
         total_expenses = finance_df[finance_df['type'] == 'expense']['amount'].sum()
         st.metric("Total Expenses", f"${total_expenses:,.2f}")
-        
+
     with col3:
         net_profit = total_income - total_expenses
         st.metric("Net Profit", f"${net_profit:,.2f}")
-    
+
     # Financial chart
     st.plotly_chart(create_financial_chart(finance_df), use_container_width=True)
-    
+
     # Transaction history
     st.subheader("Recent Transactions")
     st.dataframe(
@@ -88,7 +92,7 @@ with tab2:
 
 with tab3:
     st.header("Financial Reports")
-    
+
     # Date range selection
     col1, col2 = st.columns(2)
     with col1:
@@ -101,13 +105,13 @@ with tab3:
             "End Date",
             datetime.now()
         )
-    
+
     # Filter data by date range
     filtered_df = finance_df[
         (finance_df['date'] >= str(start_date)) &
         (finance_df['date'] <= str(end_date))
     ]
-    
+
     # Summary by category
     st.subheader("Category Summary")
     category_summary = filtered_df.groupby(['type', 'category'])['amount'].sum().reset_index()
@@ -120,7 +124,7 @@ with tab3:
         },
         hide_index=True
     )
-    
+
     # Export functionality
     if not filtered_df.empty:
         st.download_button(

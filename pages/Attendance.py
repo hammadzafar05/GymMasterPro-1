@@ -1,13 +1,17 @@
 import streamlit as st
 from utils.data_manager import DataManager
 from utils.charts import create_attendance_chart
+from utils.page_auth import require_auth
 from datetime import datetime, timedelta
 import pandas as pd
 
+# Require authentication
+user = require_auth()
+
 st.set_page_config(page_title="Attendance Management", page_icon="📋")
 
-# Initialize DataManager
-dm = DataManager()
+# Initialize DataManager with the authenticated user's tenant
+dm = DataManager(user['tenant_id'])
 
 st.title("Attendance Management")
 

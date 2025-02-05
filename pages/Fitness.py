@@ -1,12 +1,16 @@
 import streamlit as st
 from utils.data_manager import DataManager
 from utils.charts import create_measurement_progress_chart, create_bmi_gauge
+from utils.page_auth import require_auth
 import pandas as pd
+
+# Require authentication
+user = require_auth()
 
 st.set_page_config(page_title="Fitness Tracking", page_icon="📊")
 
-# Initialize DataManager
-dm = DataManager()
+# Initialize DataManager with the authenticated user's tenant
+dm = DataManager(user['tenant_id'])
 
 st.title("Fitness Tracking")
 
@@ -25,20 +29,20 @@ tab1, tab2 = st.tabs(["Record Measurements", "Progress Tracking"])
 
 with tab1:
     st.header("Record New Measurements")
-    
+
     with st.form("measurements_form"):
         col1, col2 = st.columns(2)
-        
+
         with col1:
             weight = st.number_input("Weight (kg)", min_value=0.0, max_value=300.0)
             height = st.number_input("Height (cm)", min_value=0.0, max_value=300.0)
             chest = st.number_input("Chest (cm)", min_value=0.0, max_value=200.0)
-            
+
         with col2:
             waist = st.number_input("Waist (cm)", min_value=0.0, max_value=200.0)
             arms = st.number_input("Arms (cm)", min_value=0.0, max_value=100.0)
             legs = st.number_input("Legs (cm)", min_value=0.0, max_value=200.0)
-        
+
         if st.form_submit_button("Record Measurements"):
             if weight > 0 and height > 0:
                 measurement_data = {
@@ -57,27 +61,27 @@ with tab1:
 
 with tab2:
     st.header("Progress Tracking")
-    
+
     # Load measurements for selected member
     measurements_df = dm.get_measurements(member_id)
-    
+
     if not measurements_df.empty:
         # Latest measurements
         latest_measurements = measurements_df.iloc[-1]
-        
+
         # BMI Gauge
         st.subheader("Current BMI")
         st.plotly_chart(create_bmi_gauge(latest_measurements['bmi']), use_container_width=True)
-        
+
         # Progress charts
         metrics = ['weight', 'chest', 'waist', 'arms', 'legs']
-        
+
         for metric in metrics:
             st.plotly_chart(
                 create_measurement_progress_chart(measurements_df, metric),
                 use_container_width=True
             )
-        
+
         # Measurements history
         st.subheader("Measurements History")
         st.dataframe(
@@ -94,7 +98,7 @@ with tab2:
             },
             hide_index=True
         )
-        
+
         # Export functionality
         st.download_button(
             label="Export Measurements History",
