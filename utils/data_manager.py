@@ -173,3 +173,40 @@ class DataManager:
             ORDER BY date
         """
         return pd.read_sql_query(query, self.conn, params=(self.tenant_id, member_id))
+
+    def get_data(self) -> tuple:
+        """Get all necessary data for the dashboard."""
+        self._check_tenant()
+
+        # Get members data
+        members_query = """
+            SELECT id, name, email, phone, join_date,
+                   membership_type, status, emergency_contact
+            FROM members
+            WHERE tenant_id = %s
+        """
+
+        # Get finance data
+        finance_query = """
+            SELECT date, type, category, amount, description
+            FROM finance
+            WHERE tenant_id = %s
+            ORDER BY date DESC
+        """
+
+        # Get attendance data
+        attendance_query = """
+            SELECT a.date, a.check_in, a.check_out, m.name as member_name, a.member_id
+            FROM attendance a
+            JOIN members m ON a.member_id = m.id
+            WHERE a.tenant_id = %s
+        """
+
+        try:
+            members_df = pd.read_sql_query(members_query, self.conn, params=(self.tenant_id,))
+            finance_df = pd.read_sql_query(finance_query, self.conn, params=(self.tenant_id,))
+            attendance_df = pd.read_sql_query(attendance_query, self.conn, params=(self.tenant_id,))
+            return members_df, finance_df, attendance_df
+        except Exception as e:
+            print(f"Error fetching data: {str(e)}")
+            return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
