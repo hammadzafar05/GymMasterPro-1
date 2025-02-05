@@ -36,7 +36,7 @@ if not st.session_state.tenant_id:
         if st.button("Access Dashboard"):
             st.session_state.tenant_id = tenant_names[selected_tenant]
             st.session_state.tenant_name = selected_tenant.split(" (")[0]
-            st.experimental_rerun()
+            st.rerun()
 
     st.markdown("---")
     st.markdown("Don't have a gym account? Contact our sales team to get started!")
@@ -59,7 +59,7 @@ else:
         if st.button("Switch Gym"):
             st.session_state.tenant_id = None
             st.session_state.tenant_name = None
-            st.experimental_rerun()
+            st.rerun()
 
     # Custom CSS
     st.markdown("""
