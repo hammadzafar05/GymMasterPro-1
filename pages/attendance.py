@@ -4,12 +4,12 @@ from utils.charts import create_attendance_chart
 from datetime import datetime, timedelta
 import pandas as pd
 
-st.set_page_config(page_title="Attendance Tracking", page_icon="📋")
+st.set_page_config(page_title="Attendance Management", page_icon="📋")
 
 # Initialize DataManager
 dm = DataManager()
 
-st.title("Attendance Tracking")
+st.title("Attendance Management")
 
 # Tabs for different attendance functions
 tab1, tab2 = st.tabs(["Check In/Out", "Attendance Reports"])

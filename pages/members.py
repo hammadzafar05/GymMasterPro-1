@@ -2,12 +2,12 @@ import streamlit as st
 from utils.data_manager import DataManager
 import pandas as pd
 
-st.set_page_config(page_title="Members Management", page_icon="👥")
+st.set_page_config(page_title="Member Management", page_icon="👥")
 
 # Initialize DataManager
 dm = DataManager()
 
-st.title("Members Management")
+st.title("Member Management")
 
 # Tabs for different member management functions
 tab1, tab2 = st.tabs(["Add Member", "View/Edit Members"])
