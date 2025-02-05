@@ -1,0 +1,9 @@
+date,type,category,amount,description
+2024-01-01,income,Membership Fees,299.99,Premium Membership - John Doe
+2024-01-02,income,Membership Fees,199.99,Basic Membership - Jane Smith
+2024-01-03,income,Membership Fees,499.99,VIP Membership - Mike Johnson
+2024-01-04,expense,Equipment,1500.00,New Treadmill Purchase
+2024-01-05,expense,Utilities,350.00,Monthly Electricity Bill
+2024-01-10,income,Personal Training,150.00,PT Session - Sarah Williams
+2024-01-12,expense,Maintenance,200.00,Equipment Maintenance
+2024-01-15,income,Membership Fees,299.99,Premium Membership - Sarah Williams

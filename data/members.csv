@@ -1,0 +1,6 @@
+id,name,email,phone,join_date,membership_type,status,emergency_contact
+1,John Doe,john@example.com,555-0101,2024-01-01,Premium,Active,555-0102
+2,Jane Smith,jane@example.com,555-0201,2024-01-02,Basic,Active,555-0202
+3,Mike Johnson,mike@example.com,555-0301,2024-01-03,VIP,Active,555-0302
+4,Sarah Williams,sarah@example.com,555-0401,2024-01-04,Premium,Active,555-0402
+5,Robert Brown,robert@example.com,555-0501,2024-01-05,Basic,Active,555-0502
