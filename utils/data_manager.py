@@ -1,105 +1,175 @@
 import pandas as pd
 import os
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from datetime import datetime
+import pandas as pd
 
 class DataManager:
-    def __init__(self):
-        self.members_file = 'data/members.csv'
-        self.attendance_file = 'data/attendance.csv'
-        self.finance_file = 'data/finance.csv'
-        self.measurements_file = 'data/measurements.csv'
-        self._initialize_files()
+    def __init__(self, tenant_id: int = None):
+        self.tenant_id = tenant_id
+        self.conn = psycopg2.connect(os.environ['DATABASE_URL'])
 
-    def _initialize_files(self):
-        # Members CSV
-        if not os.path.exists(self.members_file):
-            pd.DataFrame(columns=[
-                'id', 'name', 'email', 'phone', 'join_date', 
-                'membership_type', 'status', 'emergency_contact'
-            ]).to_csv(self.members_file, index=False)
+    def _check_tenant(self):
+        """Ensure tenant_id is set before operations."""
+        if not self.tenant_id:
+            raise ValueError("Tenant ID is required for this operation")
 
-        # Attendance CSV
-        if not os.path.exists(self.attendance_file):
-            pd.DataFrame(columns=[
-                'member_id', 'date', 'check_in', 'check_out'
-            ]).to_csv(self.attendance_file, index=False)
+    def add_member(self, member_data: dict) -> int:
+        """Add a new member for the current tenant."""
+        self._check_tenant()
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO members (
+                    tenant_id, name, email, phone,
+                    membership_type, status, emergency_contact
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s
+                ) RETURNING id
+                """,
+                (
+                    self.tenant_id, member_data['name'], member_data['email'],
+                    member_data['phone'], member_data['membership_type'],
+                    member_data['status'], member_data['emergency_contact']
+                )
+            )
+            self.conn.commit()
+            return cur.fetchone()[0]
 
-        # Finance CSV
-        if not os.path.exists(self.finance_file):
-            pd.DataFrame(columns=[
-                'date', 'type', 'category', 'amount', 'description'
-            ]).to_csv(self.finance_file, index=False)
+    def get_members(self) -> pd.DataFrame:
+        """Get all members for the current tenant."""
+        self._check_tenant()
+        query = """
+            SELECT id, name, email, phone, join_date,
+                   membership_type, status, emergency_contact
+            FROM members
+            WHERE tenant_id = %s
+        """
+        return pd.read_sql_query(query, self.conn, params=(self.tenant_id,))
 
-        # Measurements CSV
-        if not os.path.exists(self.measurements_file):
-            pd.DataFrame(columns=[
-                'member_id', 'date', 'weight', 'height', 'chest',
-                'waist', 'arms', 'legs', 'bmi'
-            ]).to_csv(self.measurements_file, index=False)
+    def update_member(self, member_id: int, updated_data: dict):
+        """Update member details."""
+        self._check_tenant()
+        fields = ', '.join([f"{k} = %s" for k in updated_data.keys()])
+        values = list(updated_data.values())
+        values.extend([self.tenant_id, member_id])
 
-    def add_member(self, member_data):
-        df = pd.read_csv(self.members_file)
-        member_data['id'] = len(df) + 1
-        member_data['join_date'] = datetime.now().strftime('%Y-%m-%d')
-        df = pd.concat([df, pd.DataFrame([member_data])], ignore_index=True)
-        df.to_csv(self.members_file, index=False)
-        return member_data['id']
+        with self.conn.cursor() as cur:
+            cur.execute(
+                f"""
+                UPDATE members
+                SET {fields}
+                WHERE tenant_id = %s AND id = %s
+                """,
+                values
+            )
+            self.conn.commit()
 
-    def get_members(self):
-        return pd.read_csv(self.members_file)
+    def record_attendance(self, member_id: int, check_in: bool = True):
+        """Record member attendance."""
+        self._check_tenant()
+        today = datetime.now().date()
+        current_time = datetime.now().time()
 
-    def update_member(self, member_id, updated_data):
-        df = pd.read_csv(self.members_file)
-        df.loc[df['id'] == member_id, list(updated_data.keys())] = list(updated_data.values())
-        df.to_csv(self.members_file, index=False)
+        with self.conn.cursor() as cur:
+            if check_in:
+                cur.execute(
+                    """
+                    INSERT INTO attendance (tenant_id, member_id, date, check_in)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    (self.tenant_id, member_id, today, current_time)
+                )
+            else:
+                cur.execute(
+                    """
+                    UPDATE attendance
+                    SET check_out = %s
+                    WHERE tenant_id = %s 
+                    AND member_id = %s 
+                    AND date = %s 
+                    AND check_out IS NULL
+                    """,
+                    (current_time, self.tenant_id, member_id, today)
+                )
+            self.conn.commit()
 
-    def record_attendance(self, member_id, check_in=True):
-        df = pd.read_csv(self.attendance_file)
-        today = datetime.now().strftime('%Y-%m-%d')
-        time_now = datetime.now().strftime('%H:%M:%S')
-        
-        if check_in:
-            new_record = {
-                'member_id': member_id,
-                'date': today,
-                'check_in': time_now,
-                'check_out': None
-            }
-            df = pd.concat([df, pd.DataFrame([new_record])], ignore_index=True)
-        else:
-            df.loc[(df['member_id'] == member_id) & 
-                  (df['date'] == today) & 
-                  (df['check_out'].isna()), 'check_out'] = time_now
-        
-        df.to_csv(self.attendance_file, index=False)
+    def get_attendance_report(self, start_date=None, end_date=None) -> pd.DataFrame:
+        """Get attendance report for the current tenant."""
+        self._check_tenant()
+        query = """
+            SELECT a.date, a.check_in, a.check_out, m.name as member_name
+            FROM attendance a
+            JOIN members m ON a.member_id = m.id
+            WHERE a.tenant_id = %s
+        """
+        params = [self.tenant_id]
 
-    def add_financial_record(self, record_data):
-        df = pd.read_csv(self.finance_file)
-        record_data['date'] = datetime.now().strftime('%Y-%m-%d')
-        df = pd.concat([df, pd.DataFrame([record_data])], ignore_index=True)
-        df.to_csv(self.finance_file, index=False)
-
-    def add_measurements(self, measurement_data):
-        df = pd.read_csv(self.measurements_file)
-        measurement_data['date'] = datetime.now().strftime('%Y-%m-%d')
-        # Calculate BMI
-        height_m = measurement_data['height'] / 100  # convert cm to m
-        weight_kg = measurement_data['weight']
-        measurement_data['bmi'] = weight_kg / (height_m * height_m)
-        
-        df = pd.concat([df, pd.DataFrame([measurement_data])], ignore_index=True)
-        df.to_csv(self.measurements_file, index=False)
-
-    def get_measurements(self, member_id):
-        df = pd.read_csv(self.measurements_file)
-        return df[df['member_id'] == member_id].sort_values('date')
-
-    def get_financial_summary(self):
-        df = pd.read_csv(self.finance_file)
-        return df
-
-    def get_attendance_report(self, start_date=None, end_date=None):
-        df = pd.read_csv(self.attendance_file)
         if start_date and end_date:
-            df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
-        return df
+            query += " AND a.date BETWEEN %s AND %s"
+            params.extend([start_date, end_date])
+
+        return pd.read_sql_query(query, self.conn, params=params)
+
+    def add_financial_record(self, record_data: dict):
+        """Add a financial record for the current tenant."""
+        self._check_tenant()
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO finance (
+                    tenant_id, date, type, category, amount, description
+                ) VALUES (%s, CURRENT_DATE, %s, %s, %s, %s)
+                """,
+                (
+                    self.tenant_id, record_data['type'], record_data['category'],
+                    record_data['amount'], record_data['description']
+                )
+            )
+            self.conn.commit()
+
+    def get_financial_summary(self) -> pd.DataFrame:
+        """Get financial summary for the current tenant."""
+        self._check_tenant()
+        query = """
+            SELECT date, type, category, amount, description
+            FROM finance
+            WHERE tenant_id = %s
+            ORDER BY date DESC
+        """
+        return pd.read_sql_query(query, self.conn, params=(self.tenant_id,))
+
+    def add_measurements(self, measurement_data: dict):
+        """Add measurements for a member."""
+        self._check_tenant()
+        height_m = measurement_data['height'] / 100
+        bmi = measurement_data['weight'] / (height_m * height_m)
+
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO measurements (
+                    tenant_id, member_id, date, weight, height,
+                    chest, waist, arms, legs, bmi
+                ) VALUES (%s, %s, CURRENT_DATE, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    self.tenant_id, measurement_data['member_id'],
+                    measurement_data['weight'], measurement_data['height'],
+                    measurement_data['chest'], measurement_data['waist'],
+                    measurement_data['arms'], measurement_data['legs'], bmi
+                )
+            )
+            self.conn.commit()
+
+    def get_measurements(self, member_id: int) -> pd.DataFrame:
+        """Get measurements history for a member."""
+        self._check_tenant()
+        query = """
+            SELECT date, weight, height, chest, waist, arms, legs, bmi
+            FROM measurements
+            WHERE tenant_id = %s AND member_id = %s
+            ORDER BY date
+        """
+        return pd.read_sql_query(query, self.conn, params=(self.tenant_id, member_id))
