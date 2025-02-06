@@ -1,33 +1,29 @@
 import streamlit as st
 from utils.auth_manager import AuthManager
-from utils.tenant_manager import TenantManager
 
 st.set_page_config(page_title="Register - GymFlow", page_icon="📝")
 
 # Initialize managers
 auth = AuthManager()
-tm = TenantManager()
 
-st.title("Register for GymFlow")
+st.title("Register as Gym Owner")
 
-# Get available gyms
-tenants = tm.list_tenants()
-tenant_options = {f"{t['name']} ({t['subdomain']})": t['id'] for t in tenants}
+st.markdown("""
+    Welcome to GymFlow! As a gym owner, you'll be able to:
+    - Manage multiple facilities
+    - Access detailed analytics
+    - Track member progress
+    - Handle financial operations
+""")
 
 with st.form("registration_form"):
     name = st.text_input("Full Name")
     email = st.text_input("Email")
     password = st.text_input("Password", type="password")
     confirm_password = st.text_input("Confirm Password", type="password")
-    
-    selected_gym = st.selectbox(
-        "Select Your Gym",
-        options=list(tenant_options.keys()),
-        help="Choose the gym you work at"
-    )
-    
+
     submit = st.form_submit_button("Register")
-    
+
     if submit:
         if password != confirm_password:
             st.error("Passwords do not match")
@@ -35,14 +31,14 @@ with st.form("registration_form"):
             st.error("Please fill in all fields")
         else:
             try:
-                tenant_id = tenant_options[selected_gym]
                 user = auth.register_user(
-                    tenant_id=tenant_id,
+                    tenant_id=None,  # Owner registration doesn't require tenant_id
                     email=email,
                     password=password,
-                    name=name
+                    name=name,
+                    role='owner'  # Specify role as owner
                 )
-                st.success("Registration successful! Please log in.")
+                st.success("Registration successful! Please log in to create your gym.")
                 st.markdown("[Go to Login](/Login)")
             except ValueError as e:
                 st.error(str(e))

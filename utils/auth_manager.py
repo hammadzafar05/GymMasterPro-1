@@ -8,13 +8,13 @@ from psycopg2.extras import RealDictCursor
 class AuthManager:
     def __init__(self):
         self.conn = psycopg2.connect(os.environ['DATABASE_URL'])
-    
+
     def _hash_password(self, password: str) -> str:
         """Hash a password using SHA-256."""
         return hashlib.sha256(password.encode()).hexdigest()
-    
-    def register_user(self, tenant_id: int, email: str, password: str, name: str, role: str = 'staff') -> dict:
-        """Register a new user."""
+
+    def register_user(self, email: str, password: str, name: str, role: str = 'staff', tenant_id: int = None) -> dict:
+        """Register a new user with role-based setup."""
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
             try:
                 cur.execute(
@@ -43,14 +43,14 @@ class AuthManager:
                 (email,)
             )
             user = cur.fetchone()
-            
+
             if not user or user['password_hash'] != self._hash_password(password):
                 raise ValueError("Invalid email or password")
-            
+
             # Create session
             session_id = secrets.token_urlsafe(32)
             expires_at = datetime.now() + timedelta(days=1)
-            
+
             cur.execute(
                 """
                 INSERT INTO sessions (user_id, session_id, expires_at)
@@ -60,7 +60,7 @@ class AuthManager:
                 (user['id'], session_id, expires_at)
             )
             self.conn.commit()
-            
+
             return {
                 'user_id': user['id'],
                 'tenant_id': user['tenant_id'],
@@ -69,7 +69,7 @@ class AuthManager:
                 'role': user['role'],
                 'session_id': session_id
             }
-    
+
     def validate_session(self, session_id: str) -> dict:
         """Validate a session and return user info."""
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -89,7 +89,7 @@ class AuthManager:
             if not user:
                 raise ValueError("Invalid or expired session")
             return user
-    
+
     def logout_user(self, session_id: str) -> bool:
         """Logout a user by deactivating their session."""
         with self.conn.cursor() as cur:
